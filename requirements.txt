@@ -1,0 +1,6 @@
+colorama
+humanize
+tabulate
+pprint
+msvcrt
+json
