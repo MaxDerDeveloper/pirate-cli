@@ -3,6 +3,7 @@ from threading    import Thread
 from pprint       import pprint
 from api_bay      import *
 
+import argparse
 import humanize
 import getpass
 import msvcrt
@@ -15,46 +16,108 @@ import os
 
 clear = lambda: sys.stdout.write("\033[H\033[J")
 
-def main():
-	user     = getpass.getuser()
+def parseArgs():
+	parser = argparse.ArgumentParser(
+		description="Pirate-cli is a simple tool to query 'The Pirate Bay'",
+		allow_abbrev=False,
+	)
 
+	parser.add_argument(
+		"--best", "-b", 
+		help="selects the first torrent suggestion automatically",
+		action='store_const', const=True, default=False
+	)
+
+	parser.add_argument(
+		"--silent", "-s", 
+		help="outputs generated magnet-link only (implies '--best')",
+		action='store_const', const=True, default=False
+	)
+
+	parser.add_argument(
+		"--info", "-i", 
+		help="obtains info about suggested torrent for query (implies '--silent')",
+		action='store_const', const=True, default=False
+	)
+
+	parser.add_argument(
+		"queries",
+		help="stores your queries",
+		nargs="*"
+	)
+
+	args = parser.parse_args()
+
+	if args.info:
+		args.silent = True
+
+	if args.silent:
+		args.best = True
+
+		if len(args.queries) < 1:
+			debug.error("For '--silent' at least one query is needed.", file=sys.stderr)
+			exit(1)
+
+	return args.queries, {
+		"best":   args.best,
+		"silent": args.silent,
+		"info":   args.info
+	}
+
+
+def main(query=None, silent=False, best=False, info=False):
 	# filters = ["480p", "720p", "1080p", "2160p", "x264", "x265"]
 
 	running = True
 	while running:
-		clear()
-		debug.raw_info(f"Welcome to {debug.Fore.YELLOW}pirate-cli{debug.Fore.LIGHTBLACK_EX}, {user}!")
-
-		print(logo.logo, end=debug.Style.RESET_ALL+"\n\n")
+		if not silent:
+			clear()
+			user = getpass.getuser()
+			debug.raw_info(f"Welcome to {debug.Fore.YELLOW}pirate-cli{debug.Fore.LIGHTBLACK_EX}, {user}!")
+			print(logo.logo, end=debug.Style.RESET_ALL+"\n\n")
 
 		settings = json.load(open("settings.json", "r"))
-		debug.info("Settings have been loaded")
+		if not silent:
+			debug.info("Settings have been loaded")
 
 		try:
 			### Get query ###
-			debug.info("Please enter your search term")
-			query = input("> ")
+			if not silent:
+				debug.info("Please enter your search term")
+				query = input("> ")
+			else:
+				# Just use query from kwargs
+				pass
 
 			### Search ###
 			result  = findTorrents(query)
 
 			# Cut off irrelevant results.
-			result  = result[:settings["limit"]]
+			if not best:
+				result = result[:settings["limit"]]
+			else:
+				# Only need best torrent (one only)
+				result = result[:1]
 
 			max_len = len(str(len(result)))
 			table   = []
 
-			debug.info(f"Found {len(result)} torrent files")
-			debug.info(f"Retrieving information for torrents")
+			if not silent:
+				debug.info(f"Found {len(result)} torrent files")
+				debug.info(f"Retrieving information for torrents")
 
 			session = requests.Session()
-			pb      = debug.ProgressBar("Collecting data", showAfter=1)
-			pb.loopProgress(0, len(result))
+
+			if not silent:
+				pb = debug.ProgressBar("Collecting data", showAfter=1)
+				pb.loopProgress(0, len(result))
+
 			for i, torrent in enumerate(result):
 				result[i]["info"]  = torrentInfo (torrent["id"], session=session)
 				result[i]["files"] = torrentFiles(torrent["id"], session=session)
 
-				pb.loopProgress(i+1, len(result))
+				if not silent:
+					pb.loopProgress(i+1, len(result))
 
 				# if not "1080p" in torrent["name"]:
 				# 	continue
@@ -66,62 +129,84 @@ def main():
 					torrent["seeders"],
 					torrent["leechers"],
 					
-					# torrent["size"],
 					humanize.naturalsize(torrent["size"])
-
 				])
 
 			else:
-				pb.loopProgress(len(result), len(result))
-				sys.stdout.write("\n")
+				if not silent:
+					pb.loopProgress(len(result), len(result))
+					sys.stdout.write("\n")
 
+			if not silent:
+				print(tabulate(
+					table,
+					headers=["Index", "Name", "ID", "Seeders", "Leechers", "Size"]
+				))
 
-			# pprint(result)
+			if info:
+				# torrent info
+				tinfo = result[0].copy()
+				tinfo["magnet"] = createMagnetlink(
+					tinfo["info_hash"],
+					tinfo["name"]
+				)
+				dump = json.dumps(tinfo)
+				sys.stdout.write(dump)
 
-			print(tabulate(
-				table,
-				headers=["Index", "Name", "ID", "Seeders", "Leechers", "Size"]
-			))
-
-			### Filter ###
-			# print("Filters")
-			# for i,option in enumerate(filters):
-			# 	print(f"\t{i+1}. {option}")
+				# quit
+				running = False
+				continue
 
 			### Choose torrent ###
 
-			sys.stdout.write("\n")
-			debug.info("Please enter your preferred torrent's index.")
-			choice = -1
-			while True:
-				try:
-					choice = int(input("> "))-1
-				except ValueError:
-					choice = -1
+			if not silent:
+				sys.stdout.write("\n")
 
-				if 0 <= choice < len(result):
-					break
-				else:
-					debug.error("Please choose an index from the table above.")
+			if not best:
+				debug.info("Please enter your preferred torrent's index. (0 to edit query)")
+				choice = -1
+				while True:
+					try:
+						choice = int(input("> "))-1
+					except ValueError:
+						choice = -1
+
+					if (0 <= choice < len(result)) or choice+1==0:
+						break
+					else:
+						if not silent:
+							debug.error("Please choose an index from the table above.")
+
+				# Retry, to edit query
+				if choice+1 == 0:
+					continue
+			else:
+				choice = 0
 
 			### Display choice-data ###
 			magnet = createMagnetlink(
 				info_hash = result[choice]["info_hash"],
 				name      = result[choice]["name"]
 			)
-			print("Here's your magnet link")
-			print("=>", debug.Fore.LIGHTMAGENTA_EX + magnet + debug.Style.RESET_ALL)
+			if not silent:
+				print("Here's your magnet link")
+				print("=>", debug.Fore.LIGHTMAGENTA_EX + magnet + debug.Style.RESET_ALL)
+			else:
+				sys.stdout.write(magnet)
 
 			### Bottom menu ###
-			print("\n[R etry] [Q uit]")
-			char = msvcrt.getch().decode("utf-8").upper()
-			if   char == "R":
-				continue
-			elif char == "Q":
-				running = False
+			if not silent:
+				print("\n[R etry] [Q uit]")
+				char = msvcrt.getch().decode("utf-8").upper()
+				if   char == "R":
+					continue
+				elif char == "Q":
+					running = False
+				else:
+					debug.warning(f"Other character has been entered: {char!r}")
+					debug.info("Exiting")
+					running = False
 			else:
-				debug.warning(f"Other character has been entered: {char!r}")
-				debug.info("Exiting")
 				running = False
 
 		except KeyboardInterrupt:
@@ -130,4 +215,14 @@ def main():
 
 
 if __name__ == "__main__":
-	main()
+	queries, kwargs = parseArgs()
+
+	if kwargs.get("silent"):
+		for i,query in enumerate(queries):
+			main(query=query, **kwargs)
+
+			# Line breaks between links
+			if i != len(queries)-1:
+				sys.stdout.write("\n")
+	else:
+		main(None, **kwargs)
