@@ -7,6 +7,7 @@ import humanize
 import getpass
 import msvcrt
 import debug
+import json
 import time
 import logo
 import sys
@@ -15,7 +16,7 @@ import os
 clear = lambda: sys.stdout.write("\033[H\033[J")
 
 def main():
-	user = getpass.getuser()
+	user     = getpass.getuser()
 
 	# filters = ["480p", "720p", "1080p", "2160p", "x264", "x265"]
 
@@ -24,17 +25,27 @@ def main():
 		clear()
 		debug.raw_info(f"Welcome to {debug.Fore.YELLOW}pirate-cli{debug.Fore.LIGHTBLACK_EX}, {user}!")
 
-		print(logo.logos[1], end=debug.Style.RESET_ALL+"\n\n")
+		print(logo.logo, end=debug.Style.RESET_ALL+"\n\n")
+
+		settings = json.load(open("settings.json", "r"))
+		debug.info("Settings have been loaded")
 
 		try:
 			### Get query ###
 			debug.info("Please enter your search term")
 			query = input("> ")
 
-			### Search ###			
+			### Search ###
 			result  = findTorrents(query)
+
+			# Cut off irrelevant results.
+			result  = result[:settings["limit"]]
+
 			max_len = len(str(len(result)))
 			table   = []
+
+			debug.info(f"Found {len(result)} torrent files")
+			debug.info(f"Retrieving information for torrents")
 
 			session = requests.Session()
 			pb      = debug.ProgressBar("Collecting data", showAfter=1)
@@ -103,12 +114,15 @@ def main():
 
 			### Bottom menu ###
 			print("\n[R etry] [Q uit]")
-			char = msvcrt.getch()
-			if   char.upper() == "R":
+			char = msvcrt.getch().decode("utf-8").upper()
+			if   char == "R":
 				continue
-			elif char.upper() == "Q":
+			elif char == "Q":
 				running = False
-				os._exit(0)
+			else:
+				debug.warning(f"Other character has been entered: {char!r}")
+				debug.info("Exiting")
+				running = False
 
 		except KeyboardInterrupt:
 			running = False
