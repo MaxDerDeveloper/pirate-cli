@@ -1,12 +1,12 @@
 from tabulate     import tabulate
 from threading    import Thread
 from pprint       import pprint
+from getch        import getch
 from api_bay      import *
 
 import argparse
 import humanize
 import getpass
-import msvcrt
 import debug
 import json
 import time
@@ -197,7 +197,7 @@ def main(query=None, silent=False, best=False, info=False):
 			### Bottom menu ###
 			if not silent:
 				print("\n[R etry] [Q uit]")
-				char = msvcrt.getch().decode("utf-8").upper()
+				char = getch().upper()
 				if   char == "R":
 					continue
 				elif char == "Q":
