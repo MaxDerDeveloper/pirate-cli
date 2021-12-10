@@ -56,8 +56,6 @@ def parseArgs():
 
 	args = parser.parse_args()
 
-	print(args)
-
 	if args.info:
 		args.silent = True
 
@@ -174,11 +172,16 @@ def main(query=None, silent=False, best=False, info=False, limit=None):
 				sys.stdout.write("\n")
 
 			if not best:
-				debug.info("Please enter your preferred torrent's index. (0 to edit query)")
+				debug.info("Please enter your preferred torrent's index. (Press ENTER for another query)")
 				choice = -1
 				while True:
 					try:
-						choice = int(input("> "))-1
+						input_str = input("> ")
+
+						if input_str:
+							choice = int(input_str)-1
+						else:
+							choice = -1
 					except ValueError:
 						choice = -1
 
@@ -189,7 +192,7 @@ def main(query=None, silent=False, best=False, info=False, limit=None):
 							debug.error("Please choose an index from the table above.")
 
 				# Retry, to edit query
-				if choice+1 == 0:
+				if choice == -1:
 					continue
 			else:
 				choice = 0
