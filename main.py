@@ -9,6 +9,7 @@ import humanize
 import getpass
 import debug
 import time
+import json
 import logo
 import sys
 import os
@@ -40,6 +41,15 @@ def parseArgs():
 	)
 
 	parser.add_argument(
+		"--action", "-a", 
+		help    = "executes a given command with the magnet link (Implies '--silent')",
+		action  = "store",
+		dest    = "action",
+		type    = str,
+		default = None
+	)
+
+	parser.add_argument(
 		"--limit", "-l", 
 		help    = "limits the results for further requests",
 		action  = "store",
@@ -56,7 +66,7 @@ def parseArgs():
 
 	args = parser.parse_args()
 
-	if args.info:
+	if args.info or args.action:
 		args.silent = True
 
 	if args.silent:
@@ -70,11 +80,12 @@ def parseArgs():
 		"best":   args.best,
 		"silent": args.silent,
 		"info":   args.info,
-		"limit":  args.limit
+		"limit":  args.limit,
+		"action": args.action
 	}
 
 
-def main(query=None, silent=False, best=False, info=False, limit=None):
+def main(query=None, silent=False, best=False, info=False, limit=None, action=None):
 	if not limit:
 		limit = 10
 
@@ -206,7 +217,8 @@ def main(query=None, silent=False, best=False, info=False, limit=None):
 				print("Here's your magnet link")
 				print("=>", debug.Fore.LIGHTMAGENTA_EX + magnet + debug.Style.RESET_ALL)
 			else:
-				sys.stdout.write(magnet)
+				if not action:
+					sys.stdout.write(magnet)
 
 			### Bottom menu ###
 			if not silent:
@@ -222,6 +234,9 @@ def main(query=None, silent=False, best=False, info=False, limit=None):
 					running = False
 			else:
 				running = False
+
+				if action:
+					os.system(f"{action} \"{magnet}\"")
 
 		except KeyboardInterrupt:
 			running = False
