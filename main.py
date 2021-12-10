@@ -41,9 +41,11 @@ def parseArgs():
 
 	parser.add_argument(
 		"--limit", "-l", 
-		help   = "limits the results for further requests",
-		action = "store",
-		dest   = "limit"
+		help    = "limits the results for further requests",
+		action  = "store",
+		dest    = "limit",
+		type    = int,
+		default = 10
 	)
 
 	parser.add_argument(
