@@ -8,7 +8,6 @@ import argparse
 import humanize
 import getpass
 import debug
-import json
 import time
 import logo
 import sys
@@ -25,19 +24,26 @@ def parseArgs():
 	parser.add_argument(
 		"--best", "-b", 
 		help="selects the first torrent suggestion automatically",
-		action='store_const', const=True, default=False
+		action="store_true"
 	)
 
 	parser.add_argument(
 		"--silent", "-s", 
-		help="outputs generated magnet-link only (implies '--best')",
-		action='store_const', const=True, default=False
+		help   = "outputs generated magnet-link only (implies '--best')",
+		action = "store_true"
 	)
 
 	parser.add_argument(
 		"--info", "-i", 
-		help="obtains info about suggested torrent for query (implies '--silent')",
-		action='store_const', const=True, default=False
+		help   = "obtains info about suggested torrent for query (implies '--silent')",
+		action = "store_true"
+	)
+
+	parser.add_argument(
+		"--limit", "-l", 
+		help   = "limits the results for further requests",
+		action = "store",
+		dest   = "limit"
 	)
 
 	parser.add_argument(
@@ -47,6 +53,8 @@ def parseArgs():
 	)
 
 	args = parser.parse_args()
+
+	print(args)
 
 	if args.info:
 		args.silent = True
@@ -61,12 +69,14 @@ def parseArgs():
 	return args.queries, {
 		"best":   args.best,
 		"silent": args.silent,
-		"info":   args.info
+		"info":   args.info,
+		"limit":  args.limit
 	}
 
 
-def main(query=None, silent=False, best=False, info=False):
-	# filters = ["480p", "720p", "1080p", "2160p", "x264", "x265"]
+def main(query=None, silent=False, best=False, info=False, limit=None):
+	if not limit:
+		limit = 10
 
 	running = True
 	while running:
@@ -76,7 +86,6 @@ def main(query=None, silent=False, best=False, info=False):
 			debug.raw_info(f"Welcome to {debug.Fore.YELLOW}pirate-cli{debug.Fore.LIGHTBLACK_EX}, {user}!")
 			print(logo.logo, end=debug.Style.RESET_ALL+"\n\n")
 
-		settings = json.load(open("settings.json", "r"))
 		if not silent:
 			debug.info("Settings have been loaded")
 
@@ -94,7 +103,7 @@ def main(query=None, silent=False, best=False, info=False):
 
 			# Cut off irrelevant results.
 			if not best:
-				result = result[:settings["limit"]]
+				result = result[:limit]
 			else:
 				# Only need best torrent (one only)
 				result = result[:1]
